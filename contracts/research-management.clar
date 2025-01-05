@@ -1,81 +1,100 @@
-;; research-management.clar
+;; quantum-computing-integration.clar
 
-(define-map proposals
+(define-map quantum-computers
   {id: uint}
   {
-    researcher: principal,
-    title: (string-ascii 100),
+    name: (string-ascii 100),
     description: (string-ascii 1000),
-    funding-requested: uint,
+    qubits: uint,
     status: (string-ascii 20)
   }
 )
 
-(define-map funding-allocations
-  {proposal-id: uint}
+(define-map simulation-jobs
+  {id: uint}
   {
-    amount: uint,
-    recipient: principal
+    researcher: principal,
+    computer-id: uint,
+    description: (string-ascii 1000),
+    status: (string-ascii 20),
+    result: (optional (string-ascii 10000))
   }
 )
 
-(define-data-var next-proposal-id uint u0)
+(define-data-var next-computer-id uint u0)
+(define-data-var next-job-id uint u0)
 
-(define-public (submit-proposal (title (string-ascii 100)) (description (string-ascii 1000)) (funding-requested uint))
+(define-public (register-quantum-computer (name (string-ascii 100)) (description (string-ascii 1000)) (qubits uint))
   (let
     (
-      (proposal-id (var-get next-proposal-id))
+      (computer-id (var-get next-computer-id))
     )
-    (map-set proposals
-      {id: proposal-id}
+    (map-set quantum-computers
+      {id: computer-id}
       {
-        researcher: tx-sender,
-        title: title,
+        name: name,
         description: description,
-        funding-requested: funding-requested,
-        status: "pending"
+        qubits: qubits,
+        status: "online"
       }
     )
-    (var-set next-proposal-id (+ proposal-id u1))
-    (ok proposal-id)
+    (var-set next-computer-id (+ computer-id u1))
+    (ok computer-id)
   )
 )
 
-(define-public (update-proposal-status (proposal-id uint) (new-status (string-ascii 20)))
+(define-public (submit-simulation-job (computer-id uint) (description (string-ascii 1000)))
   (let
     (
-      (proposal (unwrap! (map-get? proposals {id: proposal-id}) (err u404)))
+      (job-id (var-get next-job-id))
     )
-    (asserts! (is-eq tx-sender (get researcher proposal)) (err u403))
-    (ok (map-set proposals
-      {id: proposal-id}
-      (merge proposal {status: new-status})
+    (asserts! (is-some (map-get? quantum-computers {id: computer-id})) (err u404))
+    (map-set simulation-jobs
+      {id: job-id}
+      {
+        researcher: tx-sender,
+        computer-id: computer-id,
+        description: description,
+        status: "pending",
+        result: none
+      }
+    )
+    (var-set next-job-id (+ job-id u1))
+    (ok job-id)
+  )
+)
+
+(define-public (update-simulation-status (job-id uint) (new-status (string-ascii 20)))
+  (let
+    (
+      (job (unwrap! (map-get? simulation-jobs {id: job-id}) (err u404)))
+    )
+    (asserts! (is-eq tx-sender (get researcher job)) (err u403))
+    (ok (map-set simulation-jobs
+      {id: job-id}
+      (merge job {status: new-status})
     ))
   )
 )
 
-(define-public (allocate-funding (proposal-id uint) (amount uint))
+(define-public (submit-simulation-result (job-id uint) (result (string-ascii 10000)))
   (let
     (
-      (proposal (unwrap! (map-get? proposals {id: proposal-id}) (err u404)))
+      (job (unwrap! (map-get? simulation-jobs {id: job-id}) (err u404)))
     )
-    (asserts! (is-eq (get status proposal) "approved") (err u403))
-    (map-set funding-allocations
-      {proposal-id: proposal-id}
-      {
-        amount: amount,
-        recipient: (get researcher proposal)
-      }
-    )
-    (ok true)
+    (asserts! (is-eq tx-sender (get researcher job)) (err u403))
+    (ok (map-set simulation-jobs
+      {id: job-id}
+      (merge job {status: "completed", result: (some result)})
+    ))
   )
 )
 
-(define-read-only (get-proposal (id uint))
-  (map-get? proposals {id: id})
+(define-read-only (get-quantum-computer (id uint))
+  (map-get? quantum-computers {id: id})
 )
 
-(define-read-only (get-funding-allocation (proposal-id uint))
-  (map-get? funding-allocations {proposal-id: proposal-id})
+(define-read-only (get-simulation-job (id uint))
+  (map-get? simulation-jobs {id: id})
 )
 

@@ -10,6 +10,11 @@ path = 'contracts/governance.clar'
 clarity_version = 2
 epoch = 2.5
 
+[contracts.quantum-computing-integration]
+path = 'contracts/quantum-computing-integration.clar'
+clarity_version = 2
+epoch = 2.5
+
 [contracts.research-management]
 path = 'contracts/research-management.clar'
 clarity_version = 2
